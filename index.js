@@ -1,35 +1,51 @@
 const express = require("express");
 const ytdl = require("ytdl-core");
-const ytSearch = require("yt-search");
+const ytsr = require("ytsr");
+const cors = require("cors");
+
 const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.use(cors());
 
 app.get("/", (req, res) => {
-  res.send("✅ Rudra Media API is live. Use /audio?q=songname");
+  res.send("Rudra Media API is running ✅");
 });
 
 app.get("/audio", async (req, res) => {
   const query = req.query.q;
-  if (!query) return res.status(400).send("Query not provided");
+
+  if (!query) return res.status(400).json({ error: "Missing 'q' query" });
 
   try {
-    const searchResult = await ytSearch(query);
-    const song = searchResult.videos[0];
-    if (!song) return res.status(404).send("Song not found");
+    const filters = await ytsr.getFilters(query);
+    const videoFilter = filters.get("Type").get("Video");
 
-    const url = song.url;
+    const searchResults = await ytsr(videoFilter.url, { limit: 1 });
+    const video = searchResults.items[0];
 
-    res.setHeader("Content-Disposition", `attachment; filename="${song.title}.mp3"`);
-    ytdl(url, {
+    if (!video || !video.url) {
+      return res.status(404).json({ error: "No video found" });
+    }
+
+    const info = await ytdl.getInfo(video.url);
+    const format = ytdl.chooseFormat(info.formats, {
       filter: "audioonly",
       quality: "highestaudio",
-    }).pipe(res);
+    });
+
+    res.set({
+      "Content-Type": "audio/mpeg",
+      "Content-Disposition": `inline; filename="${video.title}.mp3"`,
+    });
+
+    ytdl(video.url, { format }).pipe(res);
   } catch (err) {
-    console.error(err);
-    res.status(500).send("❌ Error processing song");
+    console.error("❌ Error streaming:", err.message);
+    res.status(500).json({ error: "Audio stream failed: " + err.message });
   }
 });
 
-const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🎧 RudraMediaAPI running on port ${PORT}`);
 });
