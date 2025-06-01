@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "express": "latest",
-    "axios": "latest",
-    "ytdl-core": "latest"
+    "ytdl-core": "latest",
+    "yt-search": "latest"
   }
 }
